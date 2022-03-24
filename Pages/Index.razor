@@ -1,15 +1,13 @@
 ﻿@page "/"
 @using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using System.Security.Claims
 @inject HttpClient httpClient
 @inject IAccessTokenProvider TokenProvider
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Index</PageTitle>
 
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
-
-<SurveyPrompt Title="How is Blazor working for you?" />
+<h1>Hello, @(user?.Identity?.Name ?? "wait - who are you?)")</h1>
 
 <button disabled=@IsBusy @onclick=callAdminApi>Call Admin API</button>
 
@@ -18,15 +16,33 @@ Welcome to your new app.
 @code {
     string result;
     bool IsBusy = false;
+    ClaimsPrincipal user;
+    List<Claim> claims;
+
     async void callAdminApi()
     {
         IsBusy = true;
-        var token = await TokenProvider.RequestAccessToken();
-        if (token.TryGetToken(out var accessToken))
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        user = authState.User;
+        claims = user.Claims?.ToList();
+
+        if (httpClient.DefaultRequestHeaders.Authorization == null)
         {
-            httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken.Value}");
+            var token = await TokenProvider.RequestAccessToken();
+            if (token.TryGetToken(out var accessToken))
+            {
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken.Value}");
+            }
+        }
+        try
+        {
             result = await httpClient.GetStringAsync("api/admin");
         }
+        catch(Exception ex)
+        {
+            result = ex.ToString();
+        }
         IsBusy = false;
+        StateHasChanged();
     }
 }
